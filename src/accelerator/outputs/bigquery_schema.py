@@ -37,7 +37,7 @@ class BigQuerySchema:
 
     TYPE_MAPPING = {
         "INTEGER": "INT64",
-        "FLOAT": "NUMERIC",      # Important: FLOAT → NUMERIC
+        "FLOAT": "NUMERIC",      
         "DECIMAL": "NUMERIC",
         "BOOLEAN": "BOOL",
         "STRING": "STRING",
