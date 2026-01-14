@@ -52,17 +52,18 @@ class BigQuerySchema:
     @staticmethod
     def normalize_field_name(name: str) -> str:
         """
-        Normalize column names to BigQuery standards:
-        - lowercase
-        - replace spaces with underscores
-        - remove special characters
-        - must start with letter or underscore
+        Normalize column names to BigQuery standards
         """
         name = name.strip().lower()
-        name = re.sub(r"\s+", "_", name)
-        name = re.sub(r"[^a-z0-9_]", "", name)
 
-        if not name or not re.match(r"[a-z_]", name[0]):
+        # Replace spaces and special characters with underscore
+        name = re.sub(r"[^a-z0-9]", "_", name)
+
+        # Collapse multiple underscores
+        name = re.sub(r"_+", "_", name)
+
+        # BigQuery requires column to start with letter or underscore
+        if not re.match(r"[a-z_]", name[0]):
             name = f"_{name}"
 
         return name
