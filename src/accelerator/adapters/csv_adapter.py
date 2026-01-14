@@ -50,15 +50,22 @@ class CSVAdapter:
         canonical_fields: List[CanonicalField] = []
 
         for col in headers:
-            values = [row[col] for row in sample_rows if row[col] != ""]
+            values = [row[col] for row in sample_rows if row[col] not in ("", None)]
             data_type = infer_type(values)
-            nullable = any(row[col] == "" for row in sample_rows)
+            nullable = any(row[col] in ("", None) for row in sample_rows)
+
+            max_length = None
+            if data_type == "STRING" and values:
+                max_length = max(len(str(v)) for v in values)
+            
 
             canonical_fields.append(
                 CanonicalField(
                     name=col.strip(),
                     data_type=data_type,
                     nullable=nullable,
+                    description=f"Inferred from CSV column '{col}'",
+                    max_length=max_length,
                 )
             )
 
