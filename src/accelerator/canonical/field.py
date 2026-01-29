@@ -2,29 +2,23 @@ from dataclasses import dataclass
 from typing import Optional
 
 @dataclass
+class NumericMetadata:
+    precision: int              # total digits
+    scale: int                  # digits after decimal
+    max_integer_digits: int     # precision - scale
+    signed: bool = True
+
+
+@dataclass
 class CanonicalField:
     """
-    Canonical representation of a column
+    Canonical representation of a column (cloud-agnostic)
     """
+    name: str
+    data_type: str           
+    nullable: bool
 
-    def __init__(
-        self,
-        name: str,
-        data_type: str,
-        nullable: bool,
-        description: str = None,
-        max_length: int = None
-    ):
-        self.name = name
-        self.data_type = data_type
-        self.nullable = nullable
-        self.description = description
-        self.max_length = max_length
-
-    def __repr__(self):
-        return (
-            f"CanonicalField(name='{self.name}', "
-            f"data_type='{self.data_type}', "
-            f"nullable={self.nullable}, "
-            f"max_length={self.max_length})"
-        )
+    description: str = None
+    max_length: Optional[int] = None
+    has_missing: bool = False
+    numeric_metadata: Optional[NumericMetadata] = None

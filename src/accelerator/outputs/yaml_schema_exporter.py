@@ -1,7 +1,6 @@
 import yaml
 from typing import List, Dict
 
-
 class YAMLSchemaExporter:
     """
     Exports schema into YAML format.

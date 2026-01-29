@@ -1,6 +1,5 @@
 import os
 
-
 class UnsupportedFormatError(Exception):
     """Raised when input file format is not supported."""
     pass

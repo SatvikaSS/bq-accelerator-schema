@@ -1,0 +1,327 @@
+{
+  "email": {
+    "entity": "email",
+    "current_version": "v3",
+    "versions": {
+      "v1": {
+        "version": "v1",
+        "table_name": "email_v1",
+        "schema_hash": "62b5c7f20e876512479bb072ff28d82185b82715af5743d605a416fc1e14ea10",
+        "generated_at": "2026-01-20T14:53:17.066781Z",
+        "modified_at": "2026-01-20T14:53:17.066781Z",
+        "breaking_change": false,
+        "change_summary": [
+          "initial version"
+        ],
+        "schema": [
+          {
+            "name": "login_email",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "description": "Login Email column. Type: STRING. Optional."
+          },
+          {
+            "name": "identifier",
+            "type": "INT64",
+            "mode": "NULLABLE",
+            "description": "Identifier column. Type: INTEGER. Optional."
+          },
+          {
+            "name": "ingestion_timestamp",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "description": "Timestamp when the record was ingested into the platform"
+          },
+          {
+            "name": "source_system",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Identifier of the source system providing the data"
+          },
+          {
+            "name": "batch_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Unique identifier for the ingestion batch"
+          },
+          {
+            "name": "record_hash",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Hash of record content used for change detection"
+          },
+          {
+            "name": "is_deleted",
+            "type": "BOOL",
+            "mode": "REQUIRED",
+            "description": "Logical delete indicator for soft-deleted records"
+          },
+          {
+            "name": "deleted_timestamp",
+            "type": "TIMESTAMP",
+            "mode": "NULLABLE",
+            "description": "Timestamp when the record was logically deleted"
+          },
+          {
+            "name": "op_type",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "CDC operation type: INSERT, UPDATE, or DELETE"
+          },
+          {
+            "name": "op_ts",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "description": "Timestamp when the CDC operation occurred (UTC)"
+          }
+        ]
+      },
+      "v2": {
+        "version": "v2",
+        "table_name": "email_v2",
+        "schema_hash": "426409016152be4937e41e15a0e0fda56a53378ed31846981a0912672358988b",
+        "generated_at": "2026-01-20T14:53:32.400371Z",
+        "modified_at": "2026-01-20T15:01:39.969641Z",
+        "breaking_change": true,
+        "change_summary": [
+          {
+            "type": "TYPE_CHANGE",
+            "column": "identifier",
+            "from": "INT64",
+            "to": "BIGNUMERIC"
+          },
+          {
+            "type": "ADD_NULLABLE_COLUMN",
+            "column": "country"
+          },
+          {
+            "type": "NON_BREAKING_MODIFICATION",
+            "column": "email_order"
+          }
+        ],
+        "schema": [
+          {
+            "name": "login_email",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "description": "Login Email column. Type: STRING. Optional."
+          },
+          {
+            "name": "identifier",
+            "type": "BIGNUMERIC",
+            "mode": "NULLABLE",
+            "description": "Identifier column. Type: FLOAT. Optional."
+          },
+          {
+            "name": "first_name",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "description": "First Name column. Type: STRING. Optional."
+          },
+          {
+            "name": "last_name",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "description": "Last Name column. Type: STRING. Optional."
+          },
+          {
+            "name": "email_order",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "description": "Email Order column. Type: STRING. Optional."
+          },
+          {
+            "name": "signup_date",
+            "type": "DATE",
+            "mode": "NULLABLE",
+            "description": "Signup Date column. Type: DATE. Optional."
+          },
+          {
+            "name": "country",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "description": "Country column. Type: STRING. Optional."
+          },
+          {
+            "name": "ingestion_timestamp",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "description": "Timestamp when the record was ingested into the platform"
+          },
+          {
+            "name": "source_system",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Identifier of the source system providing the data"
+          },
+          {
+            "name": "batch_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Unique identifier for the ingestion batch"
+          },
+          {
+            "name": "record_hash",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Hash of record content used for change detection"
+          },
+          {
+            "name": "is_deleted",
+            "type": "BOOL",
+            "mode": "REQUIRED",
+            "description": "Logical delete indicator for soft-deleted records"
+          },
+          {
+            "name": "deleted_timestamp",
+            "type": "TIMESTAMP",
+            "mode": "NULLABLE",
+            "description": "Timestamp when the record was logically deleted"
+          },
+          {
+            "name": "op_type",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "CDC operation type: INSERT, UPDATE, or DELETE"
+          },
+          {
+            "name": "op_ts",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "description": "Timestamp when the CDC operation occurred (UTC)"
+          }
+        ]
+      },
+      "v3": {
+        "version": "v3",
+        "table_name": "email_v3",
+        "schema_hash": "01ce52fc9c8c8725c2027b5a2098819d61b0a16f2086ede0400ba60ecde6fc29",
+        "generated_at": "2026-01-25T16:36:32.479613Z",
+        "modified_at": "2026-01-25T16:36:32.479613Z",
+        "breaking_change": true,
+        "change_summary": [
+          {
+            "type": "NULLABLE_TO_REQUIRED",
+            "column": "login_email"
+          },
+          {
+            "type": "NULLABLE_TO_REQUIRED",
+            "column": "identifier"
+          },
+          {
+            "type": "NULLABLE_TO_REQUIRED",
+            "column": "first_name"
+          },
+          {
+            "type": "NULLABLE_TO_REQUIRED",
+            "column": "last_name"
+          },
+          {
+            "type": "NULLABLE_TO_REQUIRED",
+            "column": "email_order"
+          },
+          {
+            "type": "NULLABLE_TO_REQUIRED",
+            "column": "signup_date"
+          },
+          {
+            "type": "NULLABLE_TO_REQUIRED",
+            "column": "country"
+          }
+        ],
+        "schema": [
+          {
+            "name": "login_email",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Login Email column. Type: STRING. Required."
+          },
+          {
+            "name": "identifier",
+            "type": "BIGNUMERIC",
+            "mode": "REQUIRED",
+            "description": "Identifier column. Type: FLOAT. Required."
+          },
+          {
+            "name": "first_name",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "First Name column. Type: STRING. Required."
+          },
+          {
+            "name": "last_name",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Last Name column. Type: STRING. Required."
+          },
+          {
+            "name": "email_order",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Email Order column. Type: STRING. Required."
+          },
+          {
+            "name": "signup_date",
+            "type": "DATE",
+            "mode": "REQUIRED",
+            "description": "Signup Date column. Type: DATE. Required."
+          },
+          {
+            "name": "country",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Country column. Type: STRING. Required."
+          },
+          {
+            "name": "ingestion_timestamp",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "description": "Timestamp when the record was ingested into the platform"
+          },
+          {
+            "name": "source_system",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Identifier of the source system providing the data"
+          },
+          {
+            "name": "batch_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Unique identifier for the ingestion batch"
+          },
+          {
+            "name": "record_hash",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "Hash of record content used for change detection"
+          },
+          {
+            "name": "is_deleted",
+            "type": "BOOL",
+            "mode": "REQUIRED",
+            "description": "Logical delete indicator for soft-deleted records"
+          },
+          {
+            "name": "deleted_timestamp",
+            "type": "TIMESTAMP",
+            "mode": "NULLABLE",
+            "description": "Timestamp when the record was logically deleted"
+          },
+          {
+            "name": "op_type",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "description": "CDC operation type: INSERT, UPDATE, or DELETE"
+          },
+          {
+            "name": "op_ts",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "description": "Timestamp when the CDC operation occurred (UTC)"
+          }
+        ]
+      }
+    }
+  }
+}
