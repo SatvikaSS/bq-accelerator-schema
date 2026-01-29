@@ -1,6 +1,6 @@
 import re
 from accelerator.canonical.schema import CanonicalSchema
-from accelerator.outputs.metadata_columns import get_standard_metadata_columns
+from accelerator.standards.metadata_columns import get_standard_metadata_columns
 from accelerator.standards.bigquery_reserved_keywords import is_bigquery_reserved_keyword
 
 

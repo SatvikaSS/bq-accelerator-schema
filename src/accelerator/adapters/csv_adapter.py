@@ -147,5 +147,4 @@ class CSVAdapter:
             },
         )
 
-        schema.compute_fingerprint()
         return schema

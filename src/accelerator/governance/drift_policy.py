@@ -1,4 +1,4 @@
-from accelerator.registry.schema_registry import SchemaRegistry
+from accelerator.governance.schema_registry import SchemaRegistry
 
 
 class DriftPolicy:
