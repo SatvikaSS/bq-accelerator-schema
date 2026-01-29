@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+data/
+run_accelerator.py
+test_email_csv.py
+test_schema_diff.py
+__pycache__/
