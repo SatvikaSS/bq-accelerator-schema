@@ -212,3 +212,5 @@ run_accelerator.py
 test_email_csv.py
 test_schema_diff.py
 __pycache__/
+# Auto-generated runtime artifacts
+src/app/governance/schema_registry.json
