@@ -63,12 +63,27 @@ class SchemaDiff:
             "non_breaking_changes": non_breaking,
         }
 
+    def _normalize_field(self, field: Dict) -> Dict:
+        normalized = {
+            "name": field["name"],
+            "type": field["type"],
+            "mode": field.get("mode", "NULLABLE"),
+            "description": field.get("description"),
+        }
+
+        nested = field.get("fields") or []
+        if nested:
+            normalized["fields"] = sorted(
+                [self._normalize_field(child) for child in nested],
+                key=lambda x: x["name"],
+            )
+
+        return normalized
+
+
     def _field_changed(self, old: Dict, new: Dict) -> bool:
-        return (
-            old["type"] != new["type"]
-            or old["mode"] != new["mode"]
-            or old.get("description") != new.get("description")
-        )
+        return self._normalize_field(old) != self._normalize_field(new)
+
 
     def _classify_changes(
         self,

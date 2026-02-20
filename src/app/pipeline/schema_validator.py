@@ -1,6 +1,7 @@
 import re
 from typing import List
 
+from app.canonical import field
 from app.pipeline.bigquery_schema import BigQuerySchema
 from app.utils.exceptions import SchemaValidationError
 
@@ -20,22 +21,25 @@ class BigQuerySchemaValidator:
     # -------------------------------
     MAX_COLUMN_NAME_LENGTH = 300
     MAX_COLUMNS = 10_000
+    MAX_NESTING_DEPTH = 13
 
     # Enforced to match naming.py (lowercase only)
     IDENTIFIER_PATTERN = re.compile(r"^[a-z_][a-z0-9_]*$")
 
     ALLOWED_TYPES = {
         "STRING",
-        "INT64",
-        "FLOAT64",
+        "INTEGER",
+        "FLOAT",
         "NUMERIC",
         "BIGNUMERIC",
-        "BOOL",
+        "BOOLEAN",
         "DATE",
         "TIMESTAMP",
         "DATETIME",
         "RECORD",
         "JSON",
+        "GEOGRAPHY",
+        "RANGE",
     }
 
     # -------------------------------
@@ -92,6 +96,35 @@ class BigQuerySchemaValidator:
     # ------------------------------------------------------------------
     # Column-level validations
     # ------------------------------------------------------------------
+
+    def validate_range_type(self, field):
+        if field.field_type != "RANGE":
+            return
+        elem = getattr(field, "range_element_type", None)
+        if elem not in {"DATE", "TIMESTAMP"}:
+            raise SchemaValidationError(
+                f"RANGE column '{field.name}' requires valid range element type "
+                f"(DATE/TIMESTAMP), got: {elem}"
+            )
+
+    def _validate_field_depth(self, field, current_depth: int, path: str):
+        # Only RECORD contributes to nesting depth
+        if field.field_type != "RECORD":
+            return
+
+        if current_depth > self.MAX_NESTING_DEPTH:
+            raise SchemaValidationError(
+                f"Nesting depth exceeded for '{path}': "
+                f"depth {current_depth} > max {self.MAX_NESTING_DEPTH}"
+            )
+
+        for child in field.subfields:
+            child_path = f"{path}.{child.name}"
+            self._validate_field_depth(child, current_depth + 1, child_path)
+
+    def validate_nesting_depth(self, fields: List):
+        for field in fields:
+            self._validate_field_depth(field, current_depth=1, path=field.name)
 
     def validate_name_length(self, field_name: str):
         if len(field_name) > self.MAX_COLUMN_NAME_LENGTH:
@@ -208,8 +241,10 @@ class BigQuerySchemaValidator:
 
         # Generate final BigQuery fields
         fields = self.bq_schema.generate()
-
+        self.validate_nesting_depth(fields)
         self.validate_column_count(fields)
+        for field in fields:
+            self.validate_range_type(field)
 
         field_names = []
 

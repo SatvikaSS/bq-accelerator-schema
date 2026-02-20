@@ -1,0 +1,56 @@
+# ==========================================================
+# BigQuery Schema Accelerator - Config File
+# ==========================================================
+# Entity identity
+entity: withoutmal
+domain: finance
+environment: dev      # Options: dev | qa | prod
+zone: raw             # Options: raw | curated | analytics
+layer: bronze          # Options: bronze | silver | gold
+# ==========================================================
+# Source Configuration
+# ==========================================================
+source:
+  file_path: "data/email.csv"
+  # CSV override only needed if malformed
+  csv_override:
+    mode: SPLIT        # Options: SPLIT | SINGLE
+    delimiter: ";"     # Example: "," | ";" | "|" | "\t"
+    header_row_index: 0
+    header_mode: AUTO  # Options: AUTO | PRESENT | ABSENT
+    remove_quotes: true
+# ==========================================================
+# Execution Settings
+# ==========================================================
+settings:
+  drift_policy: WARN   # Options: AUTO | WARN | STRICT
+  table_description: "Core transaction records"
+  # Optional manual type overrides
+  type_overrides:
+    customer_id: INTEGER    # BOOLEAN | INTEGER
+# ==========================================================
+# Partitioning Configuration
+# ==========================================================
+partitioning:
+  mode: AUTO               # Options: AUTO | MANUAL | SKIP
+ 
+  # Required only if mode = MANUAL
+  # strategy: COLUMN       # COLUMN | INGESTION_TIME
+  # column: order_date
+  # granularity: DAY       # DAY | MONTH | YEAR
+# ==========================================================
+# Clustering Configuration
+# ==========================================================
+clustering:
+  mode: AUTO               # Options: AUTO | MANUAL | SKIP
+ 
+  # Required only if mode = MANUAL
+  # columns:
+  #   - customer_id
+  #   - order_id
+# ==========================================================
+# Output Format
+# ==========================================================
+output: ALL_FORMATS        # Options: JSON | YAML | DDL | DOCUMENTATION | ALL_FORMATS
+ 
+ 

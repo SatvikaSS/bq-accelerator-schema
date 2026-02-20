@@ -27,23 +27,38 @@ from app.standards.bigquery_reserved_keywords import (
 
 def normalize_identifier(name: str) -> str:
     """
-    Normalize identifier to BigQuery standards.
+    Normalize identifier to BigQuery-safe snake_case.
 
-    Rules:
-    - Trim whitespace
-    - Lowercase
-    - Allow only [a-z0-9_]
-    - Collapse multiple underscores
-    - Must start with a letter or underscore
+    Handles:
+    - FirstName -> first_name
+    - firstName -> first_name
+    - spaces/hyphens/special chars -> _
     """
-    name = name.strip().lower()
-    name = re.sub(r"[^a-z0-9_]", "_", name)
-    name = re.sub(r"_+", "_", name)
+    if not name:
+        return "_"
 
+    name = name.strip()
+
+    # Split camelCase / PascalCase boundaries first
+    name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+
+    # Lowercase after boundary split
+    name = name.lower()
+
+    # Replace non-alnum/underscore with underscore
+    name = re.sub(r"[^a-z0-9_]", "_", name)
+
+    # Collapse repeats and trim
+    name = re.sub(r"_+", "_", name).strip("_")
+
+    # Must start with letter or underscore for BigQuery-safe style
+    if not name:
+        name = "_"
     if not re.match(r"[a-z_]", name[0]):
         name = f"_{name}"
 
     return name
+
 
 
 def build_dataset_name(domain: str, env: str, zone: str) -> str:

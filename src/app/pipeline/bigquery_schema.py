@@ -1,3 +1,4 @@
+from dataclasses import field
 from typing import List
 
 from app.canonical.schema import CanonicalSchema
@@ -11,13 +12,14 @@ class BigQueryField:
     Represents a single BigQuery column definition.
     """
 
-    def __init__(self, name: str, field_type: str, mode: str, description: str | None, subfields: List["BigQueryField"] | None = None):
+    def __init__(self, name: str, field_type: str, mode: str, description: str | None, subfields: List["BigQueryField"] | None = None, range_element_type: str | None = None):
         self.name = name
         self.field_type = field_type
         self.mode = mode
         self.description = description
         self.subfields = subfields or []
         self.security: dict | None = None
+        self.range_element_type = range_element_type
 
     def to_dict(self) -> dict:
         field = {
@@ -29,6 +31,8 @@ class BigQueryField:
             field["description"] = self.description
         if self.field_type == "RECORD" and self.subfields:
             field["fields"] = [sf.to_dict() for sf in self.subfields]
+        if self.field_type == "RANGE" and self.range_element_type:
+            field["rangeElementType"] = {"type": self.range_element_type}
         return field
 
 
@@ -68,11 +72,14 @@ class BigQuerySchema:
                 subfields=subfields,
             )
  
+        range_element_type = "DATE" if field.data_type.upper() == "RANGE_DATE" else None
+
         return BigQueryField(
             name=field.name,
             field_type=bq_type,
             mode=bq_mode,
             description=field.description,
+            range_element_type=range_element_type,
         )
     
 

@@ -1,6 +1,10 @@
 from typing import Tuple
 from app.canonical.field import CanonicalField
+from app.standards.metadata_columns import get_standard_metadata_columns
 
+_METADATA_MODE_BY_NAME = {
+    c["name"]: c["mode"] for c in get_standard_metadata_columns()
+}
 
 def map_canonical_to_bigquery(field: CanonicalField) -> Tuple[str, str]:
     """
@@ -21,27 +25,26 @@ def map_canonical_to_bigquery(field: CanonicalField) -> Tuple[str, str]:
         bq_type, _ = _map_scalar_type(element_type, field)
         return bq_type, "REPEATED"
 
-    # -------------------------------------------------
-    # Scalar handling
-    # -------------------------------------------------
     return _map_scalar_type(canonical_type, field)
 
+def _default_mode(field: CanonicalField) -> str:
+    return _METADATA_MODE_BY_NAME.get(field.name, "NULLABLE")
 
 def _map_scalar_type(
     canonical_type: str,
     field: CanonicalField
 ) -> Tuple[str, str]:
 
-    mode = "NULLABLE" if field.nullable else "REQUIRED"
+    mode = _default_mode(field)
 
     if canonical_type == "INTEGER":
-        return "INT64", mode
+        return "INTEGER", mode
 
     if canonical_type == "FLOAT":
-        return "FLOAT64", mode
+        return "FLOAT", mode
 
     if canonical_type == "BOOLEAN":
-        return "BOOL", mode
+        return "BOOLEAN", mode
 
     if canonical_type == "STRING":
         return "STRING", mode
@@ -51,6 +54,12 @@ def _map_scalar_type(
 
     if canonical_type == "TIMESTAMP":
         return "TIMESTAMP", mode
+    
+    if canonical_type == "GEOGRAPHY":
+        return "GEOGRAPHY", mode
+
+    if canonical_type == "RANGE_DATE":
+        return "RANGE", mode
 
     if canonical_type == "DECIMAL":
         meta = field.numeric_metadata

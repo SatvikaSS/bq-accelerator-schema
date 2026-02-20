@@ -10,24 +10,48 @@ def utc_now():
 
 
 # --------------------------------------------------
-# SCHEMA HASHING (ORDER-SAFE, STRUCTURAL)
+# SCHEMA HASHING (ORDER-SAFE, DRIFT-ALIGNED)
 # --------------------------------------------------
+
+METADATA_COLUMNS = {
+    "ingestion_timestamp",
+    "source_system",
+    "batch_id",
+    "record_hash",
+    "is_deleted",
+    "deleted_timestamp",
+    "op_type",
+    "op_ts",
+}
+
+
+def _normalize_field_for_hash(field: Dict) -> Dict:
+    normalized = {
+        "name": field["name"],
+        "type": field["type"],
+        "mode": field.get("mode", "NULLABLE"),
+        "description": field.get("description"),
+    }
+
+    # Normalize nested RECORD fields recursively if present.
+    if field.get("fields"):
+        normalized["fields"] = sorted(
+            [_normalize_field_for_hash(child) for child in field["fields"]],
+            key=lambda x: x["name"],
+        )
+
+    return normalized
+
 
 def normalize_schema_for_hash(schema: List[Dict]) -> List[Dict]:
     """
     Normalize schema so hashing is:
     - order-independent
-    - structural-only (ignores descriptions)
+    - aligned to drift semantics
+    - metadata-column agnostic
     """
-    normalized = []
-
-    for field in schema:
-        normalized.append({
-            "name": field["name"],
-            "type": field["type"],
-            "mode": field.get("mode", "NULLABLE"),
-        })
-
+    filtered = [f for f in schema if f["name"] not in METADATA_COLUMNS]
+    normalized = [_normalize_field_for_hash(field) for field in filtered]
     return sorted(normalized, key=lambda x: x["name"])
 
 
@@ -59,13 +83,13 @@ class SchemaRegistry:
 
     def _load(self):
         if os.path.exists(self.path):
-            with open(self.path, "r") as f:
+            with open(self.path, "r", encoding="utf-8") as f:
                 self.data = json.load(f)
         else:
             self.data = {}
 
     def _save(self):
-        with open(self.path, "w") as f:
+        with open(self.path, "w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=2)
 
     # --------------------------------------------------

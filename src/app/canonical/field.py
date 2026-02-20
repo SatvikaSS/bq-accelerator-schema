@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional,List
+from typing import Optional,List, Dict, Any
 
 
 @dataclass
@@ -32,3 +32,7 @@ class CanonicalField:
     is_array: bool = False
     element_type: Optional[str] = None
     children: Optional[List["CanonicalField"]] = None
+
+    # Ambiguity flags
+    is_ambiguous_boolean: bool = False
+    stats: Optional[Dict[str, Any]] = None

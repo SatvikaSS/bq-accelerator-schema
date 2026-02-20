@@ -6,8 +6,23 @@ from app.canonical.schema import CanonicalSchema
 from app.canonical.table import CanonicalTable
 from app.canonical.field import CanonicalField
 from app.inference.type_inference import infer_type
+from app.inference.numeric_inference import infer_numeric_metadata
  
- 
+def _handle_json_duplicates(pairs):
+    result = {}
+    seen_counts = {}
+    for key, value in pairs:
+        if key in seen_counts:
+            seen_counts[key] += 1
+            result[f"{key}_{seen_counts[key]}"] = value
+        else:
+            seen_counts[key] = 1
+            result[key] = value
+    return result
+
+def _reject_nonstandard_constant(value: str):
+    raise ValueError(f"Invalid JSON constant: {value}")
+
 class JSONAdapter:
     """
     Recursive JSON ingestion adapter.
@@ -38,17 +53,29 @@ class JSONAdapter:
             else os.path.splitext(os.path.basename(file_path))[0]
         )
  
+    def _compute_stats(self, values: List[Any]) -> Dict[str, float]:
+        total = len(values)
+        if total == 0:
+            return {}
+        non_null = [v for v in values if v is not None and str(v).strip() != ""]
+        null_count = total - len(non_null)
+        distinct = len(set(str(v).strip() for v in non_null)) if non_null else 0
+        return {
+            "distinct_ratio": round(distinct / total, 4),
+            "null_ratio": round(null_count / total, 4),
+        }
+
     # ==================================================
     # ENTRYPOINT
     # ==================================================
  
     def parse(self) -> CanonicalSchema:
         records = self._read_json_records()
+        row_count = len(records)
+        records = records[: self.sample_size]
  
         if not records:
             raise ValueError("No valid records found in JSON input")
- 
-        records = records[: self.sample_size]
  
         fields = self._infer_fields(records)
  
@@ -58,6 +85,8 @@ class JSONAdapter:
             metadata={
                 "source_file": self.file_path,
                 "sample_size": len(records),
+                "row_count": row_count,
+                "row_count_mode": "counted",
             },
         )
  
@@ -118,10 +147,11 @@ class JSONAdapter:
                     name=name,
                     data_type="RECORD",
                     nullable=any(v is None for v in values),
+                    stats=self._compute_stats(values),
                 )
  
                 # Attach nested fields dynamically
-                field.fields = nested_fields
+                field.children = nested_fields
                 fields.append(field)
                 continue
  
@@ -134,8 +164,9 @@ class JSONAdapter:
                 for arr in non_null_values:
                     flattened.extend(arr)
  
-                if flattened and all(isinstance(v, dict) for v in flattened):
-                    nested_fields = self._infer_fields(flattened)
+                non_null_flattened = [v for v in flattened if v is not None]
+                if non_null_flattened and all(isinstance(v, dict) for v in non_null_flattened):
+                    nested_fields = self._infer_fields(non_null_flattened)
  
                     field = CanonicalField(
                         name=name,
@@ -143,13 +174,19 @@ class JSONAdapter:
                         nullable=True,
                         is_array=True,
                         element_type="RECORD",
+                        stats=self._compute_stats(values),
                     )
-                    field.fields = nested_fields
+                    field.children = nested_fields
                     fields.append(field)
                     continue
  
-                inferred = infer_type(flattened)
- 
+                inference_values = non_null_flattened if non_null_flattened else flattened
+                inferred = infer_type(inference_values)
+
+                numeric_metadata = None
+                if inferred == "DECIMAL":
+                    numeric_metadata = infer_numeric_metadata(inference_values)
+
                 fields.append(
                     CanonicalField(
                         name=name,
@@ -157,6 +194,8 @@ class JSONAdapter:
                         nullable=True,
                         is_array=True,
                         element_type=inferred,
+                        numeric_metadata=numeric_metadata,
+                        stats=self._compute_stats(values),
                     )
                 )
                 continue
@@ -170,12 +209,17 @@ class JSONAdapter:
             ]
  
             inferred_type = infer_type(scalar_values)
- 
+            numeric_metadata = None
+            if inferred_type == "DECIMAL":
+                numeric_metadata = infer_numeric_metadata(scalar_values)
+
             fields.append(
                 CanonicalField(
                     name=name,
                     data_type=inferred_type,
                     nullable=any(v is None for v in values),
+                    numeric_metadata=numeric_metadata,
+                    stats=self._compute_stats(values),
                 )
             )
  
@@ -198,8 +242,12 @@ class JSONAdapter:
  
         # Try full JSON
         try:
-            parsed = json.loads(raw)
- 
+            parsed = json.loads(
+                raw,
+                object_pairs_hook=_handle_json_duplicates,
+                parse_constant=_reject_nonstandard_constant,
+            )
+
             if isinstance(parsed, list):
                 return parsed
  
@@ -219,7 +267,12 @@ class JSONAdapter:
                     continue
  
                 try:
-                    obj = json.loads(line)
+                    obj = json.loads(
+                            line,
+                            object_pairs_hook=_handle_json_duplicates,
+                            parse_constant=_reject_nonstandard_constant,
+                        )
+
                     if isinstance(obj, dict):
                         records.append(obj)
                 except json.JSONDecodeError:

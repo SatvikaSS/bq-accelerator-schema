@@ -206,9 +206,14 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-
+tests/
+tools/
+artifacts/
+outputs/
 data/
 run_accelerator.py
+old_router.py
+test_avro_parquet.py
 test_email_csv.py
 test_schema_diff.py
 __pycache__/

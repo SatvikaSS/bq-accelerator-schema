@@ -1,1 +1,3 @@
 pyyaml
+python-jose[cryptography]
+fastapi

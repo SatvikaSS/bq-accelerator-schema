@@ -4,6 +4,7 @@ import pyarrow.parquet as pq
 
 from app.canonical.field import CanonicalField, NumericMetadata
 from app.canonical.schema import CanonicalSchema
+from app.canonical.table import CanonicalTable
 
 
 def map_parquet_type_to_canonical(field_type) -> str:
@@ -164,7 +165,9 @@ class ParquetAdapter:
         )
 
     def parse(self) -> CanonicalSchema:
-        schema = pq.ParquetFile(self.file_path).schema_arrow
+        pf = pq.ParquetFile(self.file_path)
+        schema = pf.schema_arrow
+        row_count = pf.metadata.num_rows if pf.metadata else None
 
         fields: List[CanonicalField] = []
 
@@ -173,9 +176,18 @@ class ParquetAdapter:
 
         return CanonicalSchema(
             source_type="parquet",
-            entity_name=self.entity_name,
-            fields=fields,
-            raw_metadata={
+            dataset={},   # injected later by router
+            tables=[
+                CanonicalTable(
+                    name=self.entity_name,
+                    fields=fields,
+                    metadata={
+                        "row_count": row_count,
+                        "row_count_mode": "metadata",
+                    },
+                )
+            ],
+            metadata={
                 "schema_source": "parquet_metadata",
             },
         )

@@ -3,11 +3,15 @@ from typing import Dict
 
 from app.standards.data_classification_rules import DATA_CLASSIFICATION_RULES
 from app.standards.security_controls import SECURITY_HINTS
+from app.standards.metadata_columns import get_standard_metadata_columns
 
 
 # Heuristic red-flag keywords for UNKNOWN detection
 RED_FLAG_KEYWORDS = ["secret","key","hash","token","auth","credential","private","confidential","internal",]
-
+METADATA_COLUMNS = {
+    col["name"].lower()
+    for col in get_standard_metadata_columns()
+}
 
 def _has_red_flag(text: str) -> bool:
     """
@@ -23,8 +27,18 @@ def classify_column(name: str, description: str | None = None) -> Dict[str, str]
     - SENSITIVE (explicit rules)
     - UNKNOWN (heuristic red flags)
     - NON_PII (confidently safe)
-
     """
+
+    # Platform metadata bypass
+    if name.lower() in METADATA_COLUMNS:
+        return {
+            "classification": "NON_PII",
+            "category": "NON_PII",
+            "confidence": "HIGH",
+            "recommended_control": "NONE",
+            "note": "Standard platform metadata column",
+        }
+
     text = f"{name} {description or ''}".lower()
 
     # Explicit rule-based classification (PII / SENSITIVE)

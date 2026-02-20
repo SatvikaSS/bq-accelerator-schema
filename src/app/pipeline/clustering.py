@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+from app.standards.metadata_columns import get_standard_metadata_columns
 
 """
 IMPORTANT DESIGN CONTRACT:
@@ -21,6 +22,9 @@ This module is:
 # ------------------------------------------------------------------
 
 MAX_CLUSTER_COLUMNS = 4
+METADATA_COLUMN_NAMES = {
+    c["name"].lower() for c in get_standard_metadata_columns()
+}
 
 # Semantic exclusions (columns that do not benefit from clustering)
 EXCLUDED_TYPES = {
@@ -65,36 +69,22 @@ HIGH_CARDINALITY_HINTS = (
 # Public entry point
 # ------------------------------------------------------------------
 
+CLUSTERING_ADVISORY_NOTE = (
+    "Clustering is an advisory recommendation based on schema structure, "
+    "optional data distribution signals, and usage hints."
+)
+
 def generate_clustering_suggestion(
     schema: List[Dict],
     partition_column: Optional[str] = None,
     query_patterns: Optional[Dict[str, List[str]]] = None,
     user_override: Optional[List[str]] = None,
 ) -> Dict:
-    """
-    Generate clustering suggestions from canonical PAYLOAD schema.
-
-    Expected input format:
-    [
-        {"name": "user_id", "type": "STRING", "mode": "NULLABLE"},
-        {"name": "country", "type": "STRING"}
-    ]
-
-    - No mutation
-    - No DDL
-    - UI-friendly output
-    """
-
-    # -------------------------------------------------
-    # User override (absolute priority)
-    # -------------------------------------------------
+    # keep your existing list-based override behavior
     if user_override is not None:
         return _build_user_override_response(user_override)
 
-    # -------------------------------------------------
-    # Eligibility filtering
-    # -------------------------------------------------
-    eligible_columns: List[str] = []
+    eligible_fields: List[Dict] = []
 
     for field in schema:
         name = field["name"]
@@ -109,58 +99,36 @@ def generate_clustering_suggestion(
         ):
             continue
 
-        eligible_columns.append(name)
+        eligible_fields.append(field)
 
-    if not eligible_columns:
+    if not eligible_fields:
         return _no_clustering_reason(
             "No columns met the minimum clustering suitability threshold"
         )
 
-    # -------------------------------------------------
-    # Scoring
-    # -------------------------------------------------
     scores: Dict[str, Dict] = {}
+    for field in eligible_fields:
+        scores[field["name"]] = _score_column(field, query_patterns=query_patterns)
 
-    for col in eligible_columns:
-        scores[col] = _score_column(
-            col,
-            query_patterns=query_patterns,
-        )
-
-    # Remove low / negative signal columns
     scores = {k: v for k, v in scores.items() if v["total"] > 0}
-
     if not scores:
         return _no_clustering_reason(
             "All eligible columns had low or unknown clustering benefit"
         )
 
-    # -------------------------------------------------
-    # Ranking & selection
-    # -------------------------------------------------
-    ranked = sorted(
-        scores.items(),
-        key=lambda x: x[1]["total"],
-        reverse=True,
-    )
-
+    ranked = sorted(scores.items(), key=lambda x: x[1]["total"], reverse=True)
     selected = ranked[:MAX_CLUSTER_COLUMNS]
     columns = [c for c, _ in selected]
-
     confidence = _derive_confidence([s for _, s in selected])
-
-    reasoning = {
-        col: scores[col]["reason"]
-        for col in columns
-    }
-
+    
     return {
         "clustering": {
             "suggested": True,
             "editable": True,
             "confidence": confidence,
             "columns": columns,
-            "reasoning": reasoning,
+            "reasoning": {col: scores[col]["reason"] for col in columns},
+            "notes": CLUSTERING_ADVISORY_NOTE,
         }
     }
 
@@ -169,36 +137,55 @@ def generate_clustering_suggestion(
 # ------------------------------------------------------------------
 
 def _score_column(
-    column: str,
+    field: Dict,
     query_patterns: Optional[Dict[str, List[str]]],
 ) -> Dict:
     score = 0
     reasons: List[str] = []
 
-    # Cardinality heuristics
-    if _has_high_cardinality(column):
-        score += 3
-        reasons.append("High cardinality indicator")
-    elif _has_low_cardinality(column):
-        score -= 2
+    col = field["name"]
+    lname = col.lower()
 
-    # Query pattern signals (if available)
-    if query_patterns:
-        if column in query_patterns.get("joins", []):
+    stats = field.get("stats", {})
+    distinct_ratio = stats.get("distinct_ratio")
+    null_ratio = stats.get("null_ratio")
+
+    # 1) Data-driven (primary, if stats provided)
+    if distinct_ratio is not None:
+        if distinct_ratio > 0.7:
             score += 4
-            reasons.append("Frequently used in joins")
-        elif column in query_patterns.get("filters", []):
+            reasons.append("High distinct ratio")
+        elif distinct_ratio < 0.05:
+            score -= 3
+            reasons.append("Very low distinct ratio")
+
+    if null_ratio is not None and null_ratio > 0.6:
+        score -= 2
+        reasons.append("High null ratio")
+
+    # 2) Name heuristics (secondary)
+    if _has_high_cardinality(lname):
+        score += 1
+        reasons.append("Identifier-like name")
+    elif _has_low_cardinality(lname):
+        score -= 1
+
+    # 3) Query hints
+    if query_patterns:
+        if col in query_patterns.get("joins", []):
             score += 3
-            reasons.append("Frequently used in filters")
-        elif column in query_patterns.get("group_by", []):
+            reasons.append("Used in joins")
+        if col in query_patterns.get("filters", []):
+            score += 2
+            reasons.append("Used in filters")
+        if col in query_patterns.get("group_by", []):
             score += 1
             reasons.append("Used in GROUP BY")
 
     return {
         "total": score,
-        "reason": "; ".join(reasons) if reasons else "Heuristic-based recommendation",
+        "reason": "; ".join(reasons) if reasons else "Low signal",
     }
-
 # ------------------------------------------------------------------
 # Eligibility rules
 # ------------------------------------------------------------------
@@ -211,6 +198,10 @@ def _is_excluded(
 ) -> bool:
     lname = name.lower()
 
+    # Exclude platform metadata columns from clustering
+    if lname in METADATA_COLUMN_NAMES:
+        return True
+    
     # Partition column is never clustered
     if partition_column and name == partition_column:
         return True

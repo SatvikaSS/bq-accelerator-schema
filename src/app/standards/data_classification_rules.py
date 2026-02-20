@@ -33,7 +33,7 @@ DATA_CLASSIFICATION_RULES = {
     },
 
     # --------------------
-    # SENSITIVE (non-PII)
+    # SENSITIVE 
     # --------------------
     "SENSITIVE.PASSWORD": {
         "patterns": [r"password", r"passwd", r"pwd"],

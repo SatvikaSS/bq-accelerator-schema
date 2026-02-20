@@ -78,11 +78,5 @@ class MetadataInjector:
         """
         base_name = field.name.replace("_", " ").lower()
 
-        desc = f"{base_name.capitalize()} stored as {field.data_type.lower()} value."
-
-        if field.nullable:
-            desc += " Nullable field."
-        else:
-            desc += " Required field."
-
+        desc = f"{base_name.capitalize()} stored as {field.data_type.lower()} value. Nullable field."
         return desc

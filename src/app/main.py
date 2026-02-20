@@ -1,4 +1,4 @@
-from fastapi import FastAPI,HTTPException
+from fastapi import FastAPI,HTTPException,Request
 from app.router import route
  
 app = FastAPI(
@@ -7,13 +7,13 @@ app = FastAPI(
 )
  
 @app.post("/process-schema")
-def process_schema(payload: dict):
+def process_schema(payload: dict, request: Request):
     try:
-        return route(payload)
+        return route(payload,request)
     except RuntimeError as e:
         # STRICT policy failure → client error, not server crash
         raise HTTPException(
-            status_code=409,   # Conflict
+            status_code=409,   
             detail={
                 "status": "ERROR",
                 "decision": "BREAKING",

@@ -1,3 +1,4 @@
+from dataclasses import field
 from typing import Optional, Dict
 
 from app.pipeline.bigquery_schema import BigQuerySchema
@@ -54,9 +55,15 @@ class BigQueryDDLGenerator:
             escaped = desc.replace('"', '\\"')
             return f' OPTIONS(description="{escaped}")'
 
-        # ----------------------------
+        # RANGE special-case (BigQuery requires RANGE<element_type>)
+        if field.field_type == "RANGE":
+            elem = getattr(field, "range_element_type", None) or "DATE"
+            col = f"`{field.name}` RANGE<{elem}>"
+            if field.mode == "REQUIRED":
+                col += " NOT NULL"
+            col += render_description(field.description)
+            return col
         # SCALAR (non-RECORD)
-        # ----------------------------
         if field.field_type != "RECORD":
             if field.mode == "REPEATED":
                 col = f"`{field.name}` ARRAY<{field.field_type}>"
@@ -68,15 +75,10 @@ class BigQueryDDLGenerator:
             col += render_description(field.description)
             return col
 
-        # ----------------------------
         # RECORD / STRUCT
-        # ----------------------------
-        nested_cols = []
-        for child in field.subfields:
-            nested_cols.append(self._render_field(child))
-
+        nested_cols = [self._render_field(child) for child in field.subfields]
         nested_block = ", ".join(
-            c.replace(" NOT NULL", "")  # BigQuery STRUCT fields cannot be NOT NULL
+            c.replace(" NOT NULL", "")  # STRUCT children cannot be NOT NULL
             for c in nested_cols
         )
 
@@ -90,24 +92,14 @@ class BigQueryDDLGenerator:
 
         col += render_description(field.description)
         return col
-
-
+    
     # --------------------------------------------------
     # DATASET DDL
     # --------------------------------------------------
 
-    def generate_dataset_ddl(
-        self,
-        domain: str,
-        env: str,
-        zone: str,
-    ) -> str:
+    def generate_dataset_ddl(self, domain: str, env: str, zone: str) -> str:
         dataset = build_dataset_name(domain, env, zone)
-
-        if self.project:
-            dataset_ref = f"`{self.project}.{dataset}`"
-        else:
-            dataset_ref = f"`{dataset}`"
+        dataset_ref = f"`{self.project}.{dataset}`" if self.project else f"`{dataset}`"
 
         return (
             f"CREATE SCHEMA IF NOT EXISTS {dataset_ref}\n"
@@ -152,11 +144,6 @@ class BigQueryDDLGenerator:
         # Description
         if self.bq_schema.table_description:
             options["description"] = self.bq_schema.table_description
-
-        # Retention (OPT-IN via router)
-        retention_days = self._get_partition_retention_days()
-        if retention_days:
-            options["partition_expiration_days"] = retention_days
         
         table_options = ""
         if options:
@@ -174,8 +161,6 @@ class BigQueryDDLGenerator:
                 + "\n)"
             )
 
-
-
         return (
             f"CREATE TABLE {ine}{table_ref} (\n"
             f"  {columns_block}\n"
@@ -188,13 +173,11 @@ class BigQueryDDLGenerator:
     # --------------------------------------------------
     # PARTITIONING & CLUSTERING HELPERS
     # --------------------------------------------------
-
     def _build_partitioning_clause(self) -> str:
         if not self.partitioning:
             return ""
 
         p = self.partitioning.get("partitioning_suggestion", {})
-
         strategy = p.get("strategy")
         column = p.get("column")
         column_type = p.get("column_type")
@@ -229,13 +212,6 @@ class BigQueryDDLGenerator:
 
         cols = ", ".join(f"`{col}`" for col in columns)
         return f"\nCLUSTER BY {cols}"
-
-    def _get_partition_retention_days(self) -> Optional[int]:
-        if not self.partitioning:
-            return None
-
-        p = self.partitioning.get("partitioning_suggestion", {})
-        return p.get("recommended_retention_days")
 
     # --------------------------------------------------
     # COMBINED ENTRYPOINT (USED BY ROUTER)

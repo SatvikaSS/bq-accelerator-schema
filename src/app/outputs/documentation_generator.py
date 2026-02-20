@@ -1,4 +1,5 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
+from datetime import datetime
 
 from app.pipeline.bigquery_schema import BigQuerySchema
 from app.canonical.field import CanonicalField
@@ -7,18 +8,18 @@ from app.standards.metadata_columns import get_standard_metadata_columns
 
 class DocumentationGenerator:
     """
-    Generates human-readable documentation (Markdown) for schemas.
+    Enterprise-grade Markdown documentation generator.
 
-    Responsibilities:
-    - Produce data dictionary style documentation
-    - Flatten nested fields using dot-notation
-    - Separate business and system columns
-    - Include table metadata, partitioning, clustering
-
-    DOES NOT:
-    - Validate schema
-    - Mutate schema
-    - Generate executable artifacts
+    Includes:
+    - Table metadata
+    - Partitioning & clustering
+    - Retention
+    - Versioning (optional)
+    - Security classification summary
+    - Classification coverage
+    - Rename mappings
+    - Business vs system columns
+    - Nested field flattening
     """
 
     def __init__(
@@ -26,20 +27,30 @@ class DocumentationGenerator:
         bq_schema: BigQuerySchema,
         partitioning: Optional[dict] = None,
         clustering: Optional[dict] = None,
+        security_analysis: Optional[Dict] = None,
+        rename_mappings: Optional[Dict] = None,
+        entity: Optional[str] = None,
+        version: Optional[str] = None,
+        decision: Optional[str] = None,
+        drift_policy: Optional[str] = None,
     ):
         self.bq_schema = bq_schema
         self.partitioning = partitioning
         self.clustering = clustering
+        self.security_analysis = security_analysis or {}
+        self.rename_mappings = rename_mappings or {}
+        self.entity = entity
+        self.version = version
+        self.decision = decision
+        self.drift_policy = drift_policy
 
-        # System column names derived from platform standards
         self.system_column_names = {
-            col["name"]
-            for col in get_standard_metadata_columns()
+            col["name"] for col in get_standard_metadata_columns()
         }
 
-    # --------------------------------------------------
-    # Public entrypoint
-    # --------------------------------------------------
+    # ======================================================
+    # PUBLIC ENTRYPOINT
+    # ======================================================
 
     def generate_markdown(self) -> str:
         lines: List[str] = []
@@ -49,20 +60,24 @@ class DocumentationGenerator:
 
         lines.append(f"# {table_name}")
         lines.append("")
-        lines.append("## Table Description")
+        lines.append("## Overview")
         lines.append(description)
         lines.append("")
         lines.append("---")
         lines.append("")
 
         self._render_table_properties(lines)
+        self._render_versioning(lines)
+        self._render_security_section(lines)
         self._render_columns(lines)
+        self._render_rename_mappings(lines)
+        self._render_footer(lines)
 
         return "\n".join(lines)
 
-    # --------------------------------------------------
-    # Table-level sections
-    # --------------------------------------------------
+    # ======================================================
+    # TABLE PROPERTIES
+    # ======================================================
 
     def _render_table_properties(self, lines: List[str]):
         lines.append("## Table Properties")
@@ -75,13 +90,18 @@ class DocumentationGenerator:
         lines.append(f"- **Zone**: {dataset_info.get('zone', 'N/A')}")
         lines.append(f"- **Layer**: {dataset_info.get('layer', 'N/A')}")
 
+        # Partitioning
         if self.partitioning:
             p = self.partitioning.get("partitioning_suggestion", {})
-            col = p.get("column")
-            granularity = p.get("granularity")
-            if col and granularity:
-                lines.append(f"- **Partitioning**: {granularity}({col})")
+            if p.get("strategy") == "COLUMN":
+                lines.append(
+                    f"- **Partitioning**: {p.get('granularity')}({p.get('column')})"
+                )
+            elif p.get("strategy") == "INGESTION_TIME":
+                lines.append("- **Partitioning**: INGESTION_TIME")
 
+
+        # Clustering
         if self.clustering:
             c = self.clustering.get("clustering", {})
             if c.get("suggested"):
@@ -92,9 +112,72 @@ class DocumentationGenerator:
         lines.append("---")
         lines.append("")
 
-    # --------------------------------------------------
-    # Column sections
-    # --------------------------------------------------
+    # ======================================================
+    # VERSIONING SECTION
+    # ======================================================
+
+    def _render_versioning(self, lines: List[str]):
+        if not self.entity:
+            return
+
+        lines.append("## Versioning Information")
+        lines.append("")
+        lines.append(f"- **Entity**: {self.entity}")
+        lines.append(f"- **Version**: {self.version or 'N/A'}")
+        lines.append(f"- **Decision**: {self.decision or 'N/A'}")
+        lines.append(f"- **Drift Policy Applied**: {self.drift_policy or 'N/A'}")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    # ======================================================
+    # SECURITY SECTION
+    # ======================================================
+
+    def _render_security_section(self, lines: List[str]):
+        lines.append("## Security & Governance")
+        lines.append("")
+
+        total_columns = len(self.bq_schema.canonical_schema.tables[0].fields)
+        classified_columns = len(self.security_analysis)
+
+        lines.append("### Classification Summary")
+        lines.append("")
+        lines.append(f"- **Total Columns**: {total_columns}")
+        lines.append(f"- **Classified Columns**: {classified_columns}")
+        lines.append("")
+
+        if not self.security_analysis:
+            lines.append("_No PII or sensitive fields detected._")
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+            return
+
+        lines.append("### Classified Columns")
+        lines.append("")
+        lines.append(
+            "| Column | Classification | Category | Confidence | Recommended Control |"
+        )
+        lines.append(
+            "|--------|----------------|----------|------------|---------------------|"
+        )
+
+        for col, info in self.security_analysis.items():
+            lines.append(
+                f"| {col} | {info.get('classification')} | "
+                f"{info.get('category')} | "
+                f"{info.get('confidence')} | "
+                f"{info.get('recommended_control')} |"
+            )
+
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    # ======================================================
+    # COLUMN DATA DICTIONARY
+    # ======================================================
 
     def _render_columns(self, lines: List[str]):
         fields = self.bq_schema.canonical_schema.tables[0].fields
@@ -126,10 +209,6 @@ class DocumentationGenerator:
         for field in fields:
             self._render_field_recursive(lines, field)
 
-    # --------------------------------------------------
-    # Recursive field rendering
-    # --------------------------------------------------
-
     def _render_field_recursive(
         self,
         lines: List[str],
@@ -138,10 +217,9 @@ class DocumentationGenerator:
     ):
         name = f"{parent}.{field.name}" if parent else field.name
 
-        if field.is_array:
-            mode = "REPEATED"
-        else:
-            mode = "NULLABLE" if field.nullable else "REQUIRED"
+        mode = "REPEATED" if field.is_array else (
+            "NULLABLE" if field.nullable else "REQUIRED"
+        )
 
         dtype = field.data_type
         description = field.description or ""
@@ -150,7 +228,43 @@ class DocumentationGenerator:
             f"| {name} | {dtype} | {mode} | {description} |"
         )
 
-        # Recurse for RECORD fields
         if field.data_type == "RECORD" and field.children:
             for child in field.children:
                 self._render_field_recursive(lines, child, parent=name)
+
+    # ======================================================
+    # RENAME MAPPINGS
+    # ======================================================
+
+    def _render_rename_mappings(self, lines: List[str]):
+        if not self.rename_mappings:
+            return
+
+        columns = self.rename_mappings.get("columns", {})
+        if not columns:
+            return
+
+        lines.append("## Naming Normalization")
+        lines.append("")
+        lines.append("| Original Column | Standardized Column |")
+        lines.append("|----------------|---------------------|")
+
+        for table_map in columns.values():
+            for original, renamed in table_map.items():
+                if original != renamed:
+                    lines.append(f"| {original} | {renamed} |")
+
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    # ======================================================
+    # FOOTER
+    # ======================================================
+
+    def _render_footer(self, lines: List[str]):
+        lines.append("## Metadata")
+        lines.append("")
+        lines.append(
+            f"- **Generated At (UTC)**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+        )

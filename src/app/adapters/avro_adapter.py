@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Set
 from fastavro import reader, is_avro
 
 from app.canonical.table import CanonicalTable
@@ -15,7 +15,7 @@ _AVRO_TYPE_MAP = {
     "boolean": "BOOLEAN",
     "bytes": "STRING",
 }
-
+AVRO_ROWCOUNT_SAMPLE_SIZE = 1000
 
 class AvroAdapter:
     """
@@ -42,8 +42,13 @@ class AvroAdapter:
         self,
         name: str,
         avro_type,
-        field_doc: Optional[str] = None
+        field_doc: Optional[str] = None,
+        recursion_stack: Optional[Set[str]] = None,
     ) -> CanonicalField:
+        
+        if recursion_stack is None:
+            recursion_stack = set()
+
         nullable = False
         numeric_metadata = None
 
@@ -74,17 +79,32 @@ class AvroAdapter:
 
         # RECORD (nested)
         if isinstance(avro_type, dict) and avro_type.get("type") == "record":
-            children = []
-            for idx, subfield in enumerate(avro_type.get("fields", []), start=1):
-                child_name = subfield.get("name", f"{name}_{idx}")
-                child_doc = subfield.get("doc")
-                children.append(
-                    self._parse_avro_type(
-                        name=child_name,
-                        avro_type=subfield["type"],
-                        field_doc=child_doc,
+            record_name = avro_type.get("name")
+            # Recursion detection
+            if record_name:
+                if record_name in recursion_stack:
+                    raise ValueError(
+                        f"Recursive Avro schema detected for record: {record_name}"
                     )
-                )
+                recursion_stack.add(record_name)
+
+            try:
+                children = []
+                for idx, subfield in enumerate(avro_type.get("fields", []), start=1):
+                    child_name = subfield.get("name", f"{name}_{idx}")
+                    child_doc = subfield.get("doc")
+
+                    children.append(
+                        self._parse_avro_type(
+                            name=child_name,
+                            avro_type=subfield["type"],
+                            field_doc=child_doc,
+                            recursion_stack=recursion_stack,
+                        )
+                    )
+            finally:
+                if record_name:
+                    recursion_stack.remove(record_name)
 
             return CanonicalField(
                 name=name,
@@ -110,6 +130,7 @@ class AvroAdapter:
                 element_field = self._parse_avro_type(
                     name=name,
                     avro_type=items,
+                    recursion_stack=recursion_stack,
                 )
                 return CanonicalField(
                     name=name,
@@ -141,7 +162,7 @@ class AvroAdapter:
                 has_missing=nullable,
             )
 
-        # Logical types (DECIMAL)
+        # Logical types
         if isinstance(avro_type, dict):
             logical_type = avro_type.get("logicalType")
             if logical_type == "decimal":
@@ -155,6 +176,10 @@ class AvroAdapter:
                         signed=True,
                     )
                 canonical_type = "DECIMAL"
+            elif logical_type in {"timestamp-millis", "timestamp-micros"}:
+                canonical_type = "TIMESTAMP"
+            elif logical_type == "date":
+                canonical_type = "DATE"
             else:
                 canonical_type = _AVRO_TYPE_MAP.get(avro_type.get("type"), "STRING")
         else:
@@ -182,6 +207,13 @@ class AvroAdapter:
             avro_schema = avro_reader.writer_schema
             table_description = avro_schema.get("doc")
 
+            # Approximate row count to avoid full-file scan
+            sampled_rows = 0
+            for _ in avro_reader:
+                sampled_rows += 1
+                if sampled_rows >= AVRO_ROWCOUNT_SAMPLE_SIZE:
+                    break
+
         fields: List[CanonicalField] = []
 
         for idx, field in enumerate(avro_schema.get("fields", []), start=1):
@@ -205,6 +237,11 @@ class AvroAdapter:
                 CanonicalTable(
                     name=self.entity_name,
                     fields=fields,
+                    metadata={
+                        "row_count": sampled_rows,
+                        "row_count_mode": "sampled",
+                        "row_count_sample_size": AVRO_ROWCOUNT_SAMPLE_SIZE,
+                },
                 )
             ],
             metadata={
